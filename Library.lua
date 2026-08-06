@@ -1,8 +1,360 @@
---[[
-    Octohook
-    -> Made by @finobe 
-    -> Kind of got bored idk what to do with life
-    -> Reason for leak: 
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local function make(instanceType, props)
+    local obj = Instance.new(instanceType)
+    for key, value in pairs(props or {}) do
+        obj[key] = value
+    end
+    return obj
+end
+
+local function makeLabel(parent, text, size, position, fontSize)
+    return make("TextLabel", {
+        BackgroundTransparency = 1,
+        Size = size or UDim2.new(1, -10, 0, 20),
+        Position = position or UDim2.new(0, 5, 0, 0),
+        Text = text or "",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = fontSize or 14,
+        Font = Enum.Font.GothamSemibold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = parent,
+    })
+end
+
+local Library = {}
+Library.__index = Library
+
+function Library.new(name)
+    local self = setmetatable({}, Library)
+    self.Name = name or "Library"
+    self.Gui = make("ScreenGui", {
+        Name = self.Name .. "UI",
+        ResetOnSpawn = false,
+        Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
+    })
+    self.Windows = {}
+    return self
+end
+
+function Library:CreateWindow(title)
+    local window = {}
+    window.Frame = make("Frame", {
+        Name = title or "Window",
+        Size = UDim2.new(0, 520, 0, 360),
+        Position = UDim2.new(0.5, -260, 0.5, -180),
+        BackgroundColor3 = Color3.fromRGB(24, 24, 24),
+        BorderSizePixel = 0,
+        Parent = self.Gui,
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = window.Frame })
+
+    window.TopBar = make("Frame", {
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundColor3 = Color3.fromRGB(16, 16, 16),
+        BorderSizePixel = 0,
+        Parent = window.Frame,
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = window.TopBar })
+
+    window.Title = makeLabel(window.TopBar, title or "Window", UDim2.new(1, -80, 1, 0), UDim2.new(0, 10, 0, 0), 16)
+
+    window.CloseButton = make("TextButton", {
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -34, 0.5, -14),
+        Text = "x",
+        BackgroundColor3 = Color3.fromRGB(255, 80, 80),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        Parent = window.TopBar,
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = window.CloseButton })
+    window.CloseButton.MouseButton1Click:Connect(function()
+        window.Frame:Destroy()
+    end)
+
+    window.Sidebar = make("Frame", {
+        Size = UDim2.new(0, 140, 1, -36),
+        Position = UDim2.new(0, 0, 0, 36),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Parent = window.Frame,
+    })
+
+    window.Content = make("Frame", {
+        Size = UDim2.new(1, -140, 1, -36),
+        Position = UDim2.new(0, 140, 0, 36),
+        BackgroundTransparency = 1,
+        Parent = window.Frame,
+    })
+
+    window.Tabs = {}
+    window.CurrentTab = nil
+
+    local dragging = false
+    local dragStart
+    local startPos
+
+    window.TopBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = window.Frame.Position
+        end
+    end)
+
+    window.TopBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            window.Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    function window:CreateTab(name)
+        local tab = {}
+        tab.Name = name or "Tab"
+        tab.Button = make("TextButton", {
+            Size = UDim2.new(1, -10, 0, 34),
+            Position = UDim2.new(0, 5, 0, (#window.Tabs * 40) + 6),
+            Text = tab.Name,
+            BackgroundColor3 = Color3.fromRGB(42, 42, 42),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            Font = Enum.Font.GothamSemibold,
+            TextSize = 13,
+            Parent = window.Sidebar,
+        })
+        make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = tab.Button })
+
+        tab.Page = make("Frame", {
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+            Visible = false,
+            Parent = window.Content,
+        })
+
+        tab.Button.MouseButton1Click:Connect(function()
+            for _, other in ipairs(window.Tabs) do
+                other.Page.Visible = false
+                other.Button.BackgroundColor3 = Color3.fromRGB(42, 42, 42)
+            end
+            tab.Page.Visible = true
+            tab.Button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+            window.CurrentTab = tab
+        end)
+
+        function tab:CreateSection(title)
+            local section = make("Frame", {
+                Size = UDim2.new(1, -14, 0, 100),
+                Position = UDim2.new(0, 7, 0, 10 + (#(tab.Sections or {}) * 110)),
+                BackgroundColor3 = Color3.fromRGB(28, 28, 28),
+                BorderSizePixel = 0,
+                Parent = tab.Page,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 8), Parent = section })
+
+            local header = makeLabel(section, title or "Section", UDim2.new(1, -10, 0, 24), UDim2.new(0, 8, 0, 8), 14)
+            header.TextColor3 = Color3.fromRGB(190, 190, 190)
+
+            local container = make("Frame", {
+                Size = UDim2.new(1, -12, 1, -36),
+                Position = UDim2.new(0, 6, 0, 36),
+                BackgroundTransparency = 1,
+                Parent = section,
+            })
+            section.Container = container
+            section.Header = header
+            tab.Sections = tab.Sections or {}
+            table.insert(tab.Sections, section)
+            return section
+        end
+
+        function tab:CreateButton(text, callback)
+            local button = make("TextButton", {
+                Size = UDim2.new(1, -20, 0, 32),
+                Position = UDim2.new(0, 10, 0, 10 + (#(tab.Buttons or {}) * 42)),
+                Text = text or "Button",
+                BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 13,
+                Parent = tab.Page,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = button })
+            button.MouseButton1Click:Connect(function()
+                if callback then
+                    callback()
+                end
+            end)
+            tab.Buttons = tab.Buttons or {}
+            table.insert(tab.Buttons, button)
+            return button
+        end
+
+        function tab:CreateToggle(text, default, callback)
+            local toggle = make("TextButton", {
+                Size = UDim2.new(1, -20, 0, 32),
+                Position = UDim2.new(0, 10, 0, 10 + (#(tab.Toggles or {}) * 42)),
+                Text = text or "Toggle",
+                BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 13,
+                Parent = tab.Page,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggle })
+
+            local enabled = default == true
+            local function update()
+                toggle.Text = string.format("%s: %s", text or "Toggle", enabled and "On" or "Off")
+                toggle.BackgroundColor3 = enabled and Color3.fromRGB(70, 120, 70) or Color3.fromRGB(50, 50, 50)
+            end
+            update()
+
+            toggle.MouseButton1Click:Connect(function()
+                enabled = not enabled
+                update()
+                if callback then
+                    callback(enabled)
+                end
+            end)
+
+            tab.Toggles = tab.Toggles or {}
+            table.insert(tab.Toggles, toggle)
+            return toggle
+        end
+
+        function tab:CreateSlider(text, minValue, maxValue, default, callback)
+            local slider = make("Frame", {
+                Size = UDim2.new(1, -20, 0, 48),
+                Position = UDim2.new(0, 10, 0, 10 + (#(tab.Sliders or {}) * 58)),
+                BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+                Parent = tab.Page,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = slider })
+
+            makeLabel(slider, text or "Slider", UDim2.new(1, -12, 0, 18), UDim2.new(0, 8, 0, 6), 13)
+            local bar = make("Frame", {
+                Size = UDim2.new(0, 200, 0, 8),
+                Position = UDim2.new(0, 8, 0, 28),
+                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                Parent = slider,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 4), Parent = bar })
+
+            local fill = make("Frame", {
+                Size = UDim2.new(0, 0, 1, 0),
+                BackgroundColor3 = Color3.fromRGB(90, 140, 240),
+                Parent = bar,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 4), Parent = fill })
+
+            local valueLabel = makeLabel(slider, "0", UDim2.new(0, 40, 0, 18), UDim2.new(1, -46, 0, 6), 13)
+            valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+            local min = minValue or 0
+            local max = maxValue or 100
+            local current = math.clamp(default or min, min, max)
+            local function update()
+                local ratio = (current - min) / math.max(1, max - min)
+                fill.Size = UDim2.new(ratio, 0, 1, 0)
+                valueLabel.Text = tostring(math.floor(current))
+                if callback then
+                    callback(current)
+                end
+            end
+            update()
+
+            local dragging = false
+            bar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                end
+            end)
+            bar.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local absPos = bar.AbsolutePosition
+                    local width = bar.AbsoluteSize.X
+                    local ratio = math.clamp((mousePos.X - absPos.X) / math.max(1, width), 0, 1)
+                    current = min + ((max - min) * ratio)
+                    update()
+                end
+            end)
+
+            tab.Sliders = tab.Sliders or {}
+            table.insert(tab.Sliders, slider)
+            return slider
+        end
+
+        function tab:CreateTextbox(text, callback)
+            local box = make("Frame", {
+                Size = UDim2.new(1, -20, 0, 38),
+                Position = UDim2.new(0, 10, 0, 10 + (#(tab.Textboxes or {}) * 50)),
+                BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+                Parent = tab.Page,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
+
+            makeLabel(box, text or "Input", UDim2.new(1, -12, 0, 18), UDim2.new(0, 8, 0, 6), 13)
+            local input = make("TextBox", {
+                Size = UDim2.new(1, -16, 0, 18),
+                Position = UDim2.new(0, 8, 0, 16),
+                BackgroundColor3 = Color3.fromRGB(36, 36, 36),
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                PlaceholderText = "",
+                ClearTextOnFocus = false,
+                Font = Enum.Font.Gotham,
+                TextSize = 13,
+                Parent = box,
+            })
+            make("UICorner", { CornerRadius = UDim.new(0, 4), Parent = input })
+
+            input.FocusLost:Connect(function(enterPressed)
+                if callback then
+                    callback(input.Text, enterPressed)
+                end
+            end)
+
+            tab.Textboxes = tab.Textboxes or {}
+            table.insert(tab.Textboxes, box)
+            return input
+        end
+
+        table.insert(window.Tabs, tab)
+        if not window.CurrentTab then
+            tab.Button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+            tab.Page.Visible = true
+            window.CurrentTab = tab
+        end
+        return tab
+    end
+
+    table.insert(self.Windows, window)
+    return window
+end
+
+function Library:Destroy()
+    if self.Gui then
+        self.Gui:Destroy()
+    end
+end
+
+getgenv().Library = Library
+return Library
     User was offered free features when the library was finished as compensation for the wait
     Then proceeded to ask for more and started harassing other customers and me over petty shit. 
     Yes this user said the library is TRASH somehow.. sob
